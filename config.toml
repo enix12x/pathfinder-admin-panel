@@ -1,0 +1,5 @@
+[server]
+port = 4002
+authServerUrl = "http://localhost:4001"
+pathfinderUrl = "http://localhost:3000"
+apiSecret = "YOUR_SECRET"

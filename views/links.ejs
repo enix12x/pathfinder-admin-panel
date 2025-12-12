@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Link Management - Admin Panel</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body {
+            min-height: 100vh;
+            background-color: var(--bs-dark);
+            color: var(--bs-light);
+        }
+        [data-bs-theme="light"] body {
+            background-color: var(--bs-light);
+            color: var(--bs-dark);
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">Admin Panel</a>
+            <div class="navbar-nav">
+                <a class="nav-link" href="/">Dashboard</a>
+                <a class="nav-link" href="/users">Users</a>
+                <a class="nav-link active" href="/links">Links</a>
+            </div>
+            <div class="navbar-nav ms-auto">
+                <span class="navbar-text me-3"><%= typeof user !== 'undefined' ? user.email : '' %></span>
+                <form method="POST" action="/logout" class="d-inline">
+                    <button type="submit" class="btn btn-outline-light btn-sm">Logout</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+    <div class="container-fluid mt-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>Link Management</h1>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addLinkModal">Add Link</button>
+        </div>
+
+        <div id="linkTree">
+            <% 
+            const renderLinkTree = (items, level = 0) => {
+                if (!items || items.length === 0) return '<p class="text-muted">No links</p>';
+                let html = '<ul class="list-group">';
+                items.forEach(item => {
+                    const indent = level * 20;
+                    html += `
+                        <li class="list-group-item" style="padding-left: ${indent + 20}px">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>${item.title}</strong>
+                                    ${item.submenu ? '<span class="badge bg-info ms-2">Submenu</span>' : ''}
+                                    ${item.url ? `<a href="${item.url}" target="_blank" class="ms-2">${item.url}</a>` : ''}
+                                    ${item.disclaimer ? `<p class="text-muted small mb-0 mt-1">${item.disclaimer}</p>` : ''}
+                                    <span class="badge bg-${item.visibility === 'all' ? 'success' : 'warning'} ms-2">${item.visibility}</span>
+                                </div>
+                                <div>
+                                    <button class="btn btn-sm btn-primary" onclick="editLink(${item.id})">Edit</button>
+                                    <button class="btn btn-sm btn-danger" onclick="deleteLink(${item.id})">Delete</button>
+                                </div>
+                            </div>
+                            ${item.children && item.children.length > 0 ? renderLinkTree(item.children, level + 1) : ''}
+                        </li>
+                    `;
+                });
+                html += '</ul>';
+                return html;
+            };
+            %>
+            <%- renderLinkTree(typeof links !== 'undefined' ? links : []) %>
+        </div>
+    </div>
+
+    <!-- Add Link Modal -->
+    <div class="modal fade" id="addLinkModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Link</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="addLinkForm">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Parent (optional)</label>
+                            <select class="form-select" name="parentId" id="addParentId">
+                                <option value="">Top Level</option>
+                                <% if (typeof allLinks !== 'undefined') { %>
+                                    <% allLinks.forEach(link => { %>
+                                        <option value="<%= link.id %>"><%= link.title %></option>
+                                    <% }); %>
+                                <% } %>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Title</label>
+                            <input type="text" class="form-control" name="title" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Type</label>
+                            <select class="form-select" name="submenu" id="addSubmenu" onchange="toggleUrlField('add')">
+                                <option value="false">Link</option>
+                                <option value="true">Submenu</option>
+                            </select>
+                        </div>
+                        <div class="mb-3" id="addUrlField">
+                            <label class="form-label">URL</label>
+                            <input type="url" class="form-control" name="url">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Description (optional)</label>
+                            <textarea class="form-control" name="description" rows="2" placeholder="Optional text shown under the link"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Password (optional)</label>
+                            <input type="text" class="form-control" name="password" placeholder="Optional password to protect this link">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Disclaimer (optional)</label>
+                            <textarea class="form-control" name="disclaimer" rows="2" placeholder="Optional disclaimer shown before opening"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Visibility</label>
+                            <select class="form-select" name="visibility" id="addVisibility" onchange="toggleVisibilityUsers('add')">
+                                <option value="all">All Users</option>
+                                <option value="specific">Specific Users</option>
+                            </select>
+                        </div>
+                        <div class="mb-3" id="addVisibilityUsers" style="display: none;">
+                            <label class="form-label">Select Users</label>
+                            <% if (typeof users !== 'undefined' && users.length > 0) { %>
+                                <% users.forEach(u => { %>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="userIds" value="<%= u.id %>" id="addUser<%= u.id %>">
+                                        <label class="form-check-label" for="addUser<%= u.id %>"><%= u.email %></label>
+                                    </div>
+                                <% }); %>
+                            <% } %>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Add Link</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Link Modal -->
+    <div class="modal fade" id="editLinkModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Link</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="editLinkForm">
+                    <input type="hidden" name="id" id="editLinkId">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Parent (optional)</label>
+                            <select class="form-select" name="parentId" id="editParentId">
+                                <option value="">Top Level</option>
+                                <% if (typeof allLinks !== 'undefined') { %>
+                                    <% allLinks.forEach(link => { %>
+                                        <option value="<%= link.id %>"><%= link.title %></option>
+                                    <% }); %>
+                                <% } %>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Title</label>
+                            <input type="text" class="form-control" name="title" id="editTitle" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Type</label>
+                            <select class="form-select" name="submenu" id="editSubmenu" onchange="toggleUrlField('edit')">
+                                <option value="false">Link</option>
+                                <option value="true">Submenu</option>
+                            </select>
+                        </div>
+                        <div class="mb-3" id="editUrlField">
+                            <label class="form-label">URL</label>
+                            <input type="url" class="form-control" name="url" id="editUrl">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Description (optional)</label>
+                            <textarea class="form-control" name="description" id="editDescription" rows="2" placeholder="Optional text shown under the link"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Password (optional)</label>
+                            <input type="text" class="form-control" name="password" id="editPassword" placeholder="Optional password to protect this link">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Disclaimer (optional)</label>
+                            <textarea class="form-control" name="disclaimer" id="editDisclaimer" rows="2" placeholder="Optional disclaimer shown before opening"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Visibility</label>
+                            <select class="form-select" name="visibility" id="editVisibility" onchange="toggleVisibilityUsers('edit')">
+                                <option value="all">All Users</option>
+                                <option value="specific">Specific Users</option>
+                            </select>
+                        </div>
+                        <div class="mb-3" id="editVisibilityUsers" style="display: none;">
+                            <label class="form-label">Select Users</label>
+                            <% if (typeof users !== 'undefined' && users.length > 0) { %>
+                                <% users.forEach(u => { %>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="userIds" value="<%= u.id %>" id="editUser<%= u.id %>">
+                                        <label class="form-check-label" for="editUser<%= u.id %>"><%= u.email %></label>
+                                    </div>
+                                <% }); %>
+                            <% } %>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/theme.js"></script>
+    <script>
+        const links = <%- JSON.stringify(typeof allLinks !== 'undefined' ? allLinks : []) %>;
+        const users = <%- JSON.stringify(typeof users !== 'undefined' ? users : []) %>;
+
+        function toggleUrlField(prefix) {
+            const submenu = document.getElementById(prefix + 'Submenu').value === 'true';
+            const urlField = document.getElementById(prefix + 'UrlField');
+            urlField.style.display = submenu ? 'none' : 'block';
+            if (submenu) {
+                document.getElementById(prefix + 'Url').value = '';
+            }
+        }
+
+        function toggleVisibilityUsers(prefix) {
+            const visibility = document.getElementById(prefix + 'Visibility').value;
+            const usersField = document.getElementById(prefix + 'VisibilityUsers');
+            usersField.style.display = visibility === 'specific' ? 'block' : 'none';
+        }
+
+        document.getElementById('addLinkForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const data = {
+                parentId: formData.get('parentId') || null,
+                title: formData.get('title'),
+                url: formData.get('url'),
+                submenu: formData.get('submenu'),
+                description: formData.get('description'),
+                password: formData.get('password'),
+                disclaimer: formData.get('disclaimer'),
+                visibility: formData.get('visibility'),
+                userIds: formData.getAll('userIds').map(id => parseInt(id))
+            };
+            const res = await fetch('/links', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            if (res.ok) {
+                location.reload();
+            } else {
+                alert('Failed to add link');
+            }
+        });
+
+        async function editLink(id) {
+            const link = links.find(l => l.id === id);
+            if (!link) return;
+            
+            document.getElementById('editLinkId').value = link.id;
+            document.getElementById('editParentId').value = link.parentId || '';
+            document.getElementById('editTitle').value = link.title;
+            document.getElementById('editSubmenu').value = link.submenu ? 'true' : 'false';
+            document.getElementById('editUrl').value = link.url || '';
+            document.getElementById('editDescription').value = link.description || '';
+            document.getElementById('editPassword').value = link.password || '';
+            document.getElementById('editDisclaimer').value = link.disclaimer || '';
+            document.getElementById('editVisibility').value = link.visibility;
+            
+            toggleUrlField('edit');
+            toggleVisibilityUsers('edit');
+            
+            // Load visibility users
+            if (link.visibility === 'specific') {
+                const res = await fetch(`/links/${id}/visibility`);
+                const data = await res.json();
+                if (data.success) {
+                    data.userIds.forEach(uid => {
+                        const checkbox = document.getElementById(`editUser${uid}`);
+                        if (checkbox) checkbox.checked = true;
+                    });
+                }
+            }
+            
+            new bootstrap.Modal(document.getElementById('editLinkModal')).show();
+        }
+
+        document.getElementById('editLinkForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const id = formData.get('id');
+            const data = {
+                parentId: formData.get('parentId') || null,
+                title: formData.get('title'),
+                url: formData.get('url'),
+                submenu: formData.get('submenu'),
+                description: formData.get('description'),
+                password: formData.get('password'),
+                disclaimer: formData.get('disclaimer'),
+                visibility: formData.get('visibility'),
+                userIds: formData.getAll('userIds').map(id => parseInt(id))
+            };
+            const res = await fetch(`/links/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            if (res.ok) {
+                location.reload();
+            } else {
+                alert('Failed to update link');
+            }
+        });
+
+        async function deleteLink(id) {
+            if (!confirm('Delete this link? All child links will also be deleted.')) return;
+            const res = await fetch(`/links/${id}`, { method: 'DELETE' });
+            if (res.ok) {
+                location.reload();
+            } else {
+                alert('Failed to delete link');
+            }
+        }
+    </script>
+</body>
+</html>
+

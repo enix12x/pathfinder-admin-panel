@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Management - Admin Panel</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body {
+            min-height: 100vh;
+            background-color: var(--bs-dark);
+            color: var(--bs-light);
+        }
+        [data-bs-theme="light"] body {
+            background-color: var(--bs-light);
+            color: var(--bs-dark);
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">Admin Panel</a>
+            <div class="navbar-nav">
+                <a class="nav-link" href="/">Dashboard</a>
+                <a class="nav-link active" href="/users">Users</a>
+                <a class="nav-link" href="/links">Links</a>
+            </div>
+            <div class="navbar-nav ms-auto">
+                <span class="navbar-text me-3"><%= typeof user !== 'undefined' ? user.email : '' %></span>
+                <form method="POST" action="/logout" class="d-inline">
+                    <button type="submit" class="btn btn-outline-light btn-sm">Logout</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+    <div class="container-fluid mt-4">
+        <h1>User Management</h1>
+        <div class="table-responsive mt-4">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Email</th>
+                        <th>Admin</th>
+                        <th>Verified</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% if (typeof users !== 'undefined' && users.length > 0) { %>
+                        <% users.forEach(u => { %>
+                            <tr>
+                                <td><%= u.id %></td>
+                                <td><%= u.email %></td>
+                                <td>
+                                    <% if (u.isAdmin) { %>
+                                        <span class="badge bg-success">Yes</span>
+                                    <% } else { %>
+                                        <span class="badge bg-secondary">No</span>
+                                    <% } %>
+                                </td>
+                                <td>
+                                    <% if (u.isVerified) { %>
+                                        <span class="badge bg-success">Yes</span>
+                                    <% } else { %>
+                                        <span class="badge bg-warning">No</span>
+                                    <% } %>
+                                </td>
+                                <td><%= new Date(u.createdAt).toLocaleDateString() %></td>
+                                <td>
+                                    <% if (!u.isAdmin) { %>
+                                        <button class="btn btn-sm btn-success" onclick="promoteAdmin(<%= u.id %>)">Promote</button>
+                                    <% } else { %>
+                                        <button class="btn btn-sm btn-warning" onclick="demoteAdmin(<%= u.id %>)">Demote</button>
+                                    <% } %>
+                                    <% if (!u.isVerified) { %>
+                                        <button class="btn btn-sm btn-info" onclick="verifyUser(<%= u.id %>)">Verify</button>
+                                    <% } else { %>
+                                        <button class="btn btn-sm btn-secondary" onclick="unverifyUser(<%= u.id %>)">Unverify</button>
+                                    <% } %>
+                                    <button class="btn btn-sm btn-danger" onclick="deleteUser(<%= u.id %>)">Delete</button>
+                                </td>
+                            </tr>
+                        <% }); %>
+                    <% } else { %>
+                        <tr>
+                            <td colspan="6" class="text-center">No users found</td>
+                        </tr>
+                    <% } %>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        async function promoteAdmin(userId) {
+            if (!confirm('Promote this user to admin?')) return;
+            const res = await fetch('/users/promote', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId })
+            });
+            if (res.ok) location.reload();
+            else alert('Failed to promote user');
+        }
+        async function demoteAdmin(userId) {
+            if (!confirm('Remove admin status from this user?')) return;
+            const res = await fetch('/users/demote', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId })
+            });
+            if (res.ok) location.reload();
+            else alert('Failed to demote user');
+        }
+        async function verifyUser(userId) {
+            const res = await fetch('/users/verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId })
+            });
+            if (res.ok) location.reload();
+            else alert('Failed to verify user');
+        }
+        async function unverifyUser(userId) {
+            if (!confirm('Unverify this user?')) return;
+            const res = await fetch('/users/unverify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId })
+            });
+            if (res.ok) location.reload();
+            else alert('Failed to unverify user');
+        }
+        async function deleteUser(userId) {
+            if (!confirm('Delete this user? This action cannot be undone.')) return;
+            const res = await fetch('/users/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId })
+            });
+            if (res.ok) location.reload();
+            else alert('Failed to delete user');
+        }
+    </script>
+    <script src="/theme.js"></script>
+</body>
+</html>
+
